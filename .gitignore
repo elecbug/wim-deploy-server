@@ -1,4 +1,4 @@
 .env
-deploy.conf.cmd
+usb/Deploy/deploy.conf.cmd
 secrets/*
 !secrets/.gitkeep
