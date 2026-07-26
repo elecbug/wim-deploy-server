@@ -1,3 +1,4 @@
 .env
+deploy.conf.cmd
 secrets/*
 !secrets/.gitkeep
