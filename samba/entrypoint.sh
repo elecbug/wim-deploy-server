@@ -14,14 +14,40 @@ SAMBA_PASSWORD_FILE="${SAMBA_PASSWORD_FILE:-/run/secrets/samba_password}"
     exit 1
 }
 
+# tmpfs mount points start empty on every container start.
+mkdir -p \
+    /var/lib/samba/private \
+    /var/lib/samba/lock \
+    /var/cache/samba \
+    /var/log/samba \
+    /run/samba
+
+chmod 0700 /var/lib/samba/private
+chmod 0755 \
+    /var/lib/samba \
+    /var/lib/samba/lock \
+    /var/cache/samba \
+    /var/log/samba \
+    /run/samba
+
 if ! getent passwd "$SAMBA_USER" >/dev/null; then
-    useradd --system --no-create-home --shell /usr/sbin/nologin "$SAMBA_USER"
+    useradd \
+        --system \
+        --no-create-home \
+        --shell /usr/sbin/nologin \
+        "$SAMBA_USER"
 fi
 
 password="$(cat "$SAMBA_PASSWORD_FILE")"
-printf '%s\n%s\n' "$password" "$password" | smbpasswd -s -a "$SAMBA_USER"
+
+printf '%s\n%s\n' "$password" "$password" |
+    smbpasswd -s -a "$SAMBA_USER"
+
 unset password
 
 testparm -s /etc/samba/smb.conf >/dev/null
 
-exec smbd --foreground --no-process-group --debug-stdout
+exec smbd \
+    --foreground \
+    --no-process-group \
+    --debug-stdout
