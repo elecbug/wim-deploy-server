@@ -19,7 +19,7 @@ set "DP_LIST=X:\wim-deploy-list.txt"
 set "DP_PART=X:\wim-deploy-partition.txt"
 
 call :header
-call :wait_for_network || goto :fatal
+call :initialize_network || goto :fatal
 call :connect_share || goto :fatal
 call :select_image || goto :fatal
 call :select_target_disk || goto :fatal
@@ -53,54 +53,44 @@ echo Runtime: %RUNTIME_DIR%
 echo.
 exit /b 0
 
-:wait_for_network
-echo Initializing network...
+:initialize_network
+echo Initializing WinPE networking...
 wpeinit >nul 2>&1
 
-set /a NET_TRIES=0
-
-:network_retry
-set /a NET_TRIES+=1
-for /f "tokens=2 delims=:" %%A in ('ipconfig ^| findstr /C:"IPv4 Address"') do (
-    set "HAS_IPV4=%%A"
-)
-
-if defined HAS_IPV4 (
-    echo Network interface has an IPv4 address.
-    ipconfig
-    exit /b 0
-)
-
-if !NET_TRIES! geq 12 (
-    echo ERROR: No IPv4 address was obtained.
-    exit /b 1
-)
-
-echo Waiting for DHCP... attempt !NET_TRIES!/12
-timeout /t 5 /nobreak >nul
-goto :network_retry
+echo Current network configuration:
+ipconfig
+echo.
+exit /b 0
 
 :connect_share
 echo.
 echo Connecting to %SHARE_PATH%...
 
+set /a SMB_TRIES=0
+
+:connect_share_retry
+set /a SMB_TRIES+=1
 net use "%DEPLOY_DRIVE%" /delete /y >nul 2>&1
 net use "%DEPLOY_DRIVE%" "%SHARE_PATH%" ^
-    /user:"%DEPLOY_USER%" "%DEPLOY_PASSWORD%" /persistent:no >nul
+    /user:"%DEPLOY_USER%" "%DEPLOY_PASSWORD%" /persistent:no >nul 2>&1
 
-if errorlevel 1 (
-    echo ERROR: Failed to connect to %SHARE_PATH%.
-    echo Check the server IP, Samba account, password, firewall, and network.
+if not errorlevel 1 (
+    if exist "%IMAGE_ROOT%\\" (
+        echo Connected successfully.
+        exit /b 0
+    )
+)
+
+if !SMB_TRIES! geq 12 (
+    echo ERROR: Failed to connect to %SHARE_PATH% after !SMB_TRIES! attempts.
+    echo Check DHCP, server IP, Samba account, password, firewall, and network driver.
     exit /b 1
 )
 
-if not exist "%IMAGE_ROOT%\" (
-    echo ERROR: Image directory was not found: %IMAGE_ROOT%
-    exit /b 1
-)
-
-echo Connected successfully.
-exit /b 0
+echo SMB is not ready. Retrying !SMB_TRIES!/12...
+rem WinPE may not include timeout.exe. ping provides a portable delay.
+ping 127.0.0.1 -n 6 >nul 2>&1
+goto :connect_share_retry
 
 :select_image
 echo.
@@ -294,7 +284,8 @@ echo Do not disconnect power, Ethernet, or the deployment server.
 echo ============================================================
 echo.
 
-timeout /t 3 /nobreak >nul
+rem WinPE may not include timeout.exe.
+ping 127.0.0.1 -n 4 >nul 2>&1
 
 dism /Apply-Image ^
     /ImageFile:"%WIM_PATH%" ^
