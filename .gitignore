@@ -1,4 +1,5 @@
 .env
 usb/Deploy/deploy.conf.cmd
+samba/smb.conf
 secrets/*
 !secrets/.gitkeep
