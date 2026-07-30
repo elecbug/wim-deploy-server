@@ -60,6 +60,16 @@ services:
       - /var/lib/samba:size=64m,mode=0755
       - /var/log/samba:size=64m,mode=0755
 
+    networks:
+      - wim-deploy-net
+
+networks:
+  wim-deploy-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.230.0.0/24
+
 secrets:
   samba_password:
     file: ./secrets/samba_password.txt
